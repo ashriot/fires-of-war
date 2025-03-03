@@ -1,0 +1,7 @@
+[gd_resource type="Theme" load_steps=2 format=3 uid="uid://c61r75kplolxi"]
+
+[ext_resource type="FontFile" uid="uid://lm362taha05s" path="res://assets/fonts/TinyBox.ttf" id="1_yg6qi"]
+
+[resource]
+default_font = ExtResource("1_yg6qi")
+default_font_size = 5
