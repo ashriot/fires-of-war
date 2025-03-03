@@ -39,8 +39,9 @@ func _ready():
 	pass
 
 func select():
-	is_selected = true
-	emit_signal("unit_selected", self)
+	if not is_selected:
+		is_selected = true
+		emit_signal("unit_selected", self)
 
 func deselect():
 	is_selected = false

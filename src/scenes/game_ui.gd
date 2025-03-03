@@ -28,7 +28,7 @@ func initialize(unit_mgr, turn_mgr):
 	# Connect signals
 	unit_manager.connect("unit_added", Callable(self, "_on_unit_added"))
 	unit_manager.connect("unit_removed", Callable(self, "_on_unit_removed"))
-
+	unit_manager.connect("unit_selected", Callable(self, "_on_unit_selected"))
 	turn_manager.connect("phase_changed", Callable(self, "_on_phase_changed"))
 	turn_manager.connect("turn_started", Callable(self, "_on_turn_started"))
 
@@ -87,5 +87,7 @@ func _on_turn_started(turn_number):
 	update_turn_info(turn_number, turn_manager.current_phase)
 
 func _on_end_turn_button_pressed():
+	print("End turn button pressed")
 	if turn_manager.current_phase == TurnManager.GamePhase.PLAYER_TURN:
+		# This is the correct way to end the player's turn
 		turn_manager.end_player_turn()

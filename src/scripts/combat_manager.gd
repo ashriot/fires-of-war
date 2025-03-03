@@ -21,7 +21,7 @@ func initialize(unit_mgr):
 	unit_manager = unit_mgr
 
 func perform_attack(attacker, defender, action_name="basic_attack"):
-	emit_signal("combat_started", attacker, defender)
+	combat_started.emit(attacker, defender)
 
 	# Base damage calculation
 	var damage = calculate_damage(attacker, defender, action_name)

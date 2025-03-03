@@ -9,6 +9,7 @@ var all_units = []
 # Signals
 signal unit_added(unit)
 signal unit_removed(unit)
+signal unit_selected(unit)
 signal turn_ended
 
 # Current active unit
@@ -37,7 +38,7 @@ func add_player_unit(unit_class, grid_position, map_node):
 	# Add to scene
 	map_node.add_child(unit)
 
-	emit_signal("unit_added", unit)
+	unit_added.emit(unit)
 	return unit
 
 func add_enemy_unit(unit_class, grid_position, map_node):
@@ -55,7 +56,7 @@ func add_enemy_unit(unit_class, grid_position, map_node):
 	# Add to scene
 	map_node.add_child(unit)
 
-	emit_signal("unit_added", unit)
+	unit_added.emit(unit)
 	return unit
 
 func remove_unit(unit):
@@ -68,7 +69,7 @@ func remove_unit(unit):
 	if unit in all_units:
 		all_units.erase(unit)
 
-	emit_signal("unit_removed", unit)
+	unit_removed.emit(unit)
 
 func get_unit_at_grid_position(grid_pos):
 	for unit in all_units:
@@ -78,12 +79,17 @@ func get_unit_at_grid_position(grid_pos):
 	return null
 
 func select_unit(unit):
+	if active_unit == unit:
+		return
+
 	if active_unit:
 		active_unit.deselect()
 
 	active_unit = unit
+
 	if unit:
-		unit.select()
+		unit.is_selected = true
+	unit_selected.emit(unit)
 
 func deselect_active_unit():
 	if active_unit:
@@ -91,7 +97,11 @@ func deselect_active_unit():
 		active_unit = null
 
 func end_all_turns():
+	print("Resetting all units for new turn")
 	for unit in all_units:
+		unit.has_moved = false
+		unit.has_acted = false
+		# Call unit's end_turn method for any recovery logic
 		unit.end_turn()
 
 	emit_signal("turn_ended")

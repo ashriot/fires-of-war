@@ -18,7 +18,8 @@ var highlight_cells = []
 @onready var game_ui = $GameUI
 
 # Preload the highlight cell scene
-var highlight_cell_scene = preload("res://src/scenes/highlight_cell.tscn")
+var highlight_cell_scene = preload("res://src/scenes/highlight_cell.tscn") as PackedScene
+var damage_number_scene = preload("res://src/scenes/damage_number.tscn") as PackedScene
 
 # Camera panning
 var dragging = false
@@ -41,10 +42,22 @@ func _ready():
 
 	# Connect signals
 	turn_manager.connect("phase_changed", Callable(self, "_on_phase_changed"))
+	turn_manager.connect("enemy_turn_started", Callable(self, "_process_enemy_turn"))
+	turn_manager.connect("player_turn_started", Callable(self, "_on_player_turn_started"))
 
 	# Connect unit signals to combat manager
 	for unit in unit_manager.all_units:
 		unit.connect("unit_attacked", Callable(self, "_on_unit_attacked"))
+
+func _on_player_turn_started():
+	print("Map received player_turn_started signal")
+	# Perform any player turn setup here
+	# This ensures the map knows when a new player turn has begun
+
+	# Debug the state of all player units
+	print("Player units at start of turn:")
+	for unit in unit_manager.player_units:
+		print("  " + unit.unit_name + " - has_moved: " + str(unit.has_moved) + ", has_acted: " + str(unit.has_acted))
 
 func _initialize_grid():
 	# Create a grid
@@ -302,15 +315,21 @@ func _clear_movement_highlights():
 	highlight_cells.clear()
 
 func _process_enemy_turn():
+	print("Processing enemy turn")
 	# Process each enemy unit's turn one at a time
 	var enemy_units = unit_manager.enemy_units.duplicate()
 	_take_enemy_turn(enemy_units)
 
 func _take_enemy_turn(remaining_enemies):
 	if remaining_enemies.size() == 0:
-		# All enemies have taken their turn, return to player phase
+		# All enemies have taken their turn
+		print("All enemies have moved, ending enemy turn")
 		await get_tree().create_timer(0.5).timeout
-		turn_manager.set_phase(TurnManager.GamePhase.PLAYER_TURN)
+
+		# End enemy turn in turn manager (which will start a new turn)
+		print("Calling turn_manager.end_enemy_turn()")
+		turn_manager.end_enemy_turn()
+		print("Returned from turn_manager.end_enemy_turn()")
 		return
 
 	var enemy = remaining_enemies.pop_front()
@@ -345,6 +364,7 @@ func _take_enemy_turn(remaining_enemies):
 
 				# Set the new position
 				enemy.position = world_target
+				enemy.has_moved = true  # Mark that the enemy has moved
 
 			await get_tree().create_timer(0.3).timeout
 			# Process next enemy
@@ -423,9 +443,9 @@ func _perform_attack(attacker, defender):
 	tween.tween_property(defender, "modulate", Color(1, 1, 1), 0.1)
 
 	# Show damage number
-	var damage_number = DamageNumber.new()
-	damage_number.position = defender.position + Vector2(0, -15)
+	var damage_number = damage_number_scene.instantiate() as DamageNumber
 	damage_number.set_text(str(damage))
+	damage_number.position = defender.position + Vector2(0, -15)
 	add_child(damage_number)
 
 	# Check if defender died
@@ -440,18 +460,28 @@ func _perform_attack(attacker, defender):
 func _on_unit_attacked(attacker, defender):
 	_perform_attack(attacker, defender)
 
-# Signal handlers
 func _on_phase_changed(new_phase):
+	print("Map _on_phase_changed called with new_phase: " + str(new_phase))
+
 	match new_phase:
 		TurnManager.GamePhase.PLAYER_TURN:
-			print("Player turn started")
+			print("Map received player phase change")
+			# Player turn setup is now handled in _on_player_turn_started
+
 		TurnManager.GamePhase.ENEMY_TURN:
-			print("Enemy turn started")
+			print("Map received enemy phase change")
+			# Clean up player-turn state
 			_clear_movement_highlights()
 			unit_manager.deselect_active_unit()
 			selected_unit = null
-			_process_enemy_turn()
+
+			# We no longer call _process_enemy_turn here
+			# It will be called via the enemy_turn_started signal
+
 		TurnManager.GamePhase.VICTORY:
 			print("Victory!")
+			# Show victory UI or effects
+
 		TurnManager.GamePhase.DEFEAT:
 			print("Defeat!")
+			# Show defeat UI or effects

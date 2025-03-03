@@ -36,4 +36,4 @@ func heal(amount):
 func _update_hp_bar():
 	if has_node("HPBar"):
 		var hp_percent = float(hp) / float(max_hp)
-		$HPBar.scale.x = hp_percent
+		$HPBar.value = hp_percent

@@ -15,7 +15,7 @@ func _ready():
 	tween.tween_callback(Callable(self, "queue_free"))
 
 func set_text(text):
-	label.text = text
+	$Label.text = text
 
 	if int(text) > 20:  # Arbitrary threshold for what's considered a critical hit
-		label.modulate = Color(1, 0.9, 0, 1)
+		$Label.modulate = Color(1, 0.9, 0, 1)

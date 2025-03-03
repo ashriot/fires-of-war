@@ -41,7 +41,7 @@ func heal(amount):
 func _update_hp_bar():
 	if has_node("HPBar"):
 		var hp_percent = float(hp) / float(max_hp)
-		$HPBar.scale.x = hp_percent
+		$HPBar.value = hp_percent
 
 func get_ai_action(player_units):
 	# Determine what action to take based on the situation
@@ -68,6 +68,29 @@ func get_ai_action(player_units):
 	return {
 		"action": "wait"
 	}
+
+func take_turn(player_units):
+	# Get the AI's decision
+	var action = get_ai_action(player_units)
+
+	# Execute the decided action
+	match action.action:
+		"attack":
+			if can_act():
+				attack(action.target)
+				return true
+		"move":
+			if can_move():
+				# Movement is handled by the map/movement manager
+				# This will emit a signal that the map can respond to
+				emit_signal("unit_moved", self)
+				has_moved = true
+				return true
+		"wait":
+			# Do nothing
+			pass
+
+	return false  # Return whether the unit did something
 
 func find_closest_unit(units):
 	var closest = null

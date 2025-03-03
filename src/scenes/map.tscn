@@ -1,13 +1,12 @@
-[gd_scene load_steps=11 format=4 uid="uid://c0pnd4kglv4lw"]
+[gd_scene load_steps=10 format=4 uid="uid://c0pnd4kglv4lw"]
 
-[ext_resource type="Script" path="res://src/scenes/map.gd" id="1_bvsfh"]
+[ext_resource type="Script" uid="uid://cpvbnl64pa0dw" path="res://src/scenes/map.gd" id="1_bvsfh"]
 [ext_resource type="Texture2D" uid="uid://csuejgf60xepc" path="res://assets/graphics/wee_dungeon.png" id="2_oymkj"]
-[ext_resource type="PackedScene" uid="uid://cv15646v5pvrc" path="res://src/scenes/hero_unit.tscn" id="3_47ey8"]
-[ext_resource type="Script" path="res://src/scripts/unit_manager.gd" id="5_qtcyx"]
-[ext_resource type="Script" path="res://src/scripts/turn_manager.gd" id="5_wfjc2"]
-[ext_resource type="Script" path="res://src/scenes/game_ui.gd" id="6_60aa2"]
-[ext_resource type="Script" path="res://src/scripts/combat_manager.gd" id="7_vew2o"]
-[ext_resource type="Script" path="res://src/scripts/animation_manager.gd" id="8_86v2v"]
+[ext_resource type="Script" uid="uid://djqxvrgxktwnl" path="res://src/scripts/unit_manager.gd" id="5_qtcyx"]
+[ext_resource type="Script" uid="uid://6o0ok8e0221d" path="res://src/scripts/turn_manager.gd" id="5_wfjc2"]
+[ext_resource type="Script" uid="uid://c3uuhchw70ig3" path="res://src/scenes/game_ui.gd" id="6_60aa2"]
+[ext_resource type="Script" uid="uid://buqwgyna57ufo" path="res://src/scripts/combat_manager.gd" id="7_vew2o"]
+[ext_resource type="Script" uid="uid://i2s5r8ekq7hb" path="res://src/scripts/animation_manager.gd" id="8_86v2v"]
 
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_i4pu1"]
 texture = ExtResource("2_oymkj")
@@ -79,8 +78,6 @@ script = ExtResource("1_bvsfh")
 tile_map_data = PackedByteArray("AAAAAAAAAQABAAEAAAABAAAAAQABAAEAAAACAAAAAQABAAEAAAADAAAAAQABAAEAAAAEAAAAAQABAAEAAAAFAAAAAQABAAEAAAAGAAAAAQABAAEAAAAHAAAAAQABAAEAAAAIAAAAAQABAAEAAAAJAAAAAQABAAEAAAAKAAAAAQABAAEAAAA=")
 tile_set = SubResource("TileSet_bu75t")
 
-[node name="HeroUnit" parent="." instance=ExtResource("3_47ey8")]
-
 [node name="Camera2D" type="Camera2D" parent="."]
 position = Vector2(55, 95)
 
@@ -103,11 +100,13 @@ offset_right = 40.0
 offset_bottom = 40.0
 
 [node name="TurnLabel" type="Label" parent="GameUI/TurnInfo"]
+visible = false
 layout_mode = 0
 offset_right = 40.0
 offset_bottom = 5.0
 
 [node name="PhaseLabel" type="Label" parent="GameUI/TurnInfo"]
+visible = false
 layout_mode = 0
 offset_right = 40.0
 offset_bottom = 5.0
@@ -128,18 +127,21 @@ offset_bottom = 5.0
 
 [node name="UnitClassLabel" type="Label" parent="GameUI/UnitInfoPanel"]
 layout_mode = 0
+offset_top = 6.0
 offset_right = 40.0
-offset_bottom = 5.0
+offset_bottom = 11.0
 
 [node name="HPLabel" type="Label" parent="GameUI/UnitInfoPanel"]
 layout_mode = 0
+offset_top = 13.0
 offset_right = 40.0
-offset_bottom = 5.0
+offset_bottom = 18.0
 
 [node name="APLabel" type="Label" parent="GameUI/UnitInfoPanel"]
 layout_mode = 0
+offset_top = 19.0
 offset_right = 40.0
-offset_bottom = 5.0
+offset_bottom = 24.0
 
 [node name="EndTurnButton" type="Button" parent="GameUI"]
 anchors_preset = 12
