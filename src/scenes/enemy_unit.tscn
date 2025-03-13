@@ -1,7 +1,23 @@
-[gd_scene load_steps=3 format=3 uid="uid://cl6laukrw3mg2"]
+[gd_scene load_steps=5 format=3 uid="uid://cl6laukrw3mg2"]
 
 [ext_resource type="Script" uid="uid://dg4p6qpi2llte" path="res://src/scenes/enemy_unit.gd" id="1_35fmk"]
 [ext_resource type="Texture2D" uid="uid://bu6siofbjlfoc" path="res://assets/graphics/actors/fighter.png" id="2_k8alc"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_mibn4"]
+bg_color = Color(0.462745, 0.184314, 0.219608, 1)
+corner_radius_top_left = 1
+corner_radius_top_right = 1
+corner_radius_bottom_right = 1
+corner_radius_bottom_left = 1
+anti_aliasing = false
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_mwret"]
+bg_color = Color(0.741176, 0.254902, 0.329412, 1)
+corner_radius_top_left = 1
+corner_radius_top_right = 1
+corner_radius_bottom_right = 1
+corner_radius_bottom_left = 1
+anti_aliasing = false
 
 [node name="EnemyUnit" type="Node2D"]
 script = ExtResource("1_35fmk")
@@ -12,10 +28,12 @@ flip_h = true
 hframes = 17
 
 [node name="HPBar" type="ProgressBar" parent="."]
-offset_left = -13.0
-offset_top = -10.0
-offset_right = 13.0
+offset_left = -5.0
+offset_top = -8.0
+offset_right = 5.0
 offset_bottom = -6.0
+theme_override_styles/background = SubResource("StyleBoxFlat_mibn4")
+theme_override_styles/fill = SubResource("StyleBoxFlat_mwret")
 max_value = 1.0
 value = 0.5
 show_percentage = false

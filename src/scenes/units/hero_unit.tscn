@@ -1,7 +1,7 @@
 [gd_scene load_steps=5 format=3 uid="uid://cv15646v5pvrc"]
 
-[ext_resource type="Script" uid="uid://fjl7ya1ixv1v" path="res://src/scenes/hero_unit.gd" id="1_j1nj5"]
-[ext_resource type="Texture2D" uid="uid://bu6siofbjlfoc" path="res://assets/graphics/actors/fighter.png" id="2_y0ull"]
+[ext_resource type="Script" uid="uid://fjl7ya1ixv1v" path="res://src/scenes/units/hero_unit.gd" id="1_g0g6o"]
+[ext_resource type="Texture2D" uid="uid://bu6siofbjlfoc" path="res://assets/graphics/actors/fighter.png" id="2_k7y7h"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_dmg2k"]
 bg_color = Color(0.207843, 0.286275, 0.219608, 1)
@@ -20,16 +20,16 @@ corner_radius_bottom_left = 1
 anti_aliasing = false
 
 [node name="HeroUnit" type="Node2D"]
-script = ExtResource("1_j1nj5")
+script = ExtResource("1_g0g6o")
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
-texture = ExtResource("2_y0ull")
+texture = ExtResource("2_k7y7h")
 hframes = 17
 
 [node name="HPBar" type="ProgressBar" parent="."]
-offset_left = -11.0
+offset_left = -5.0
 offset_top = -8.0
-offset_right = 11.0
+offset_right = 5.0
 offset_bottom = -6.0
 theme_override_styles/background = SubResource("StyleBoxFlat_dmg2k")
 theme_override_styles/fill = SubResource("StyleBoxFlat_3tbvd")

@@ -16,7 +16,7 @@ signal turn_ended
 var active_unit = null
 
 # References to scenes
-var hero_unit_scene = preload("res://src/scenes/hero_unit.tscn")
+var hero_unit_scene = preload("res://src/scenes/units/hero_unit.tscn")
 var enemy_unit_scene = preload("res://src/scenes/enemy_unit.tscn")
 
 func _ready():

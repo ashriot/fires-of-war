@@ -1,7 +1,23 @@
-[gd_resource type="Theme" load_steps=2 format=3 uid="uid://c61r75kplolxi"]
+[gd_resource type="Theme" load_steps=6 format=3 uid="uid://c61r75kplolxi"]
 
+[ext_resource type="StyleBox" uid="uid://be0ycha0aa3xq" path="res://resources/ui/button_normal.tres" id="1_7j863"]
+[ext_resource type="StyleBox" uid="uid://befuqgvcr1pim" path="res://resources/ui/button_disabled.tres" id="1_50bnw"]
 [ext_resource type="FontFile" uid="uid://lm362taha05s" path="res://assets/fonts/TinyBox.ttf" id="1_yg6qi"]
+[ext_resource type="StyleBox" uid="uid://qj6totj1nras" path="res://resources/ui/button_pressed.tres" id="2_50bnw"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_50bnw"]
 
 [resource]
 default_font = ExtResource("1_yg6qi")
 default_font_size = 5
+Button/colors/font_color = Color(0.164706, 0.109804, 0.192157, 1)
+Button/colors/font_disabled_color = Color(0.164706, 0.109804, 0.192157, 0.607843)
+Button/colors/font_focus_color = Color(0.164706, 0.109804, 0.192157, 1)
+Button/colors/font_hover_color = Color(0.164706, 0.109804, 0.192157, 1)
+Button/colors/font_pressed_color = Color(0.164706, 0.109804, 0.192157, 1)
+Button/styles/disabled = ExtResource("1_50bnw")
+Button/styles/focus = SubResource("StyleBoxEmpty_50bnw")
+Button/styles/hover = ExtResource("1_7j863")
+Button/styles/normal = ExtResource("1_7j863")
+Button/styles/pressed = ExtResource("2_50bnw")
+Label/colors/font_color = Color(1, 1, 1, 1)

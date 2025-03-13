@@ -7,8 +7,8 @@ class_name GameUI
 @onready var unit_info_panel = $UnitInfoPanel
 @onready var unit_name_label = $UnitInfoPanel/UnitNameLabel
 @onready var unit_class_label = $UnitInfoPanel/UnitClassLabel
-@onready var unit_hp_label = $UnitInfoPanel/HPLabel
-@onready var unit_ap_label = $UnitInfoPanel/APLabel
+@onready var unit_hp_label = $UnitInfoPanel/HpLabel
+@onready var unit_ap_label = $UnitInfoPanel/ApLabel
 @onready var end_turn_button = $EndTurnButton
 
 # References to game systems
@@ -18,8 +18,6 @@ var turn_manager = null
 func _ready():
 	unit_info_panel.visible = false
 
-	# Connect button signal
-	end_turn_button.connect("pressed", Callable(self, "_on_end_turn_button_pressed"))
 
 func initialize(unit_mgr, turn_mgr):
 	unit_manager = unit_mgr
@@ -42,7 +40,7 @@ func update_turn_info(turn_number, phase):
 	match phase:
 		TurnManager.GamePhase.PLAYER_TURN:
 			phase_text = "Player Phase"
-			end_turn_button.visible = true
+			#end_turn_button.visible = true
 		TurnManager.GamePhase.ENEMY_TURN:
 			phase_text = "Enemy Phase"
 			end_turn_button.visible = false
@@ -60,8 +58,8 @@ func update_unit_info(unit):
 		var info = unit.get_info()
 		unit_name_label.text = info.name
 		unit_class_label.text = "Class: " + info.class
-		unit_hp_label.text = "HP: " + str(info.hp) + "/" + str(info.max_hp)
-		unit_ap_label.text = "AP: " + str(info.ap) + "/" + str(info.max_ap)
+		unit_hp_label.text = str(info.hp) + "  " + str(info.max_hp)
+		unit_ap_label.text = str(info.ap) + "  " + str(info.max_ap)
 
 		unit_info_panel.visible = true
 	else:

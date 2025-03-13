@@ -1,0 +1,3 @@
+[gd_scene format=3 uid="uid://b16dh5n5dar4m"]
+
+[node name="ActionButton" type="Button"]

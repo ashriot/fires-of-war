@@ -83,7 +83,7 @@ func take_turn(player_units):
 			if can_move():
 				# Movement is handled by the map/movement manager
 				# This will emit a signal that the map can respond to
-				emit_signal("unit_moved", self)
+				unit_moved.emit(self)
 				has_moved = true
 				return true
 		"wait":

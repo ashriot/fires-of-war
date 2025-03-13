@@ -1,435 +1,311 @@
 extends Node2D
 
 # Grid settings
-const GRID_SIZE = 10
+const GRID_SIZE = Vector2i(10, 10)
 const CELL_SIZE = 12  # This should match your sprite size
-var grid = []
 
-# Unit selection and movement
+# Unit movement
 var selected_unit = null
 var target_position = Vector2.ZERO
 var is_moving = false
-var highlight_cells = []
+var current_path = []  # For storing the path during movement
 
-# Managers
-@onready var unit_manager = $UnitManager
-@onready var turn_manager = $TurnManager
-@onready var combat_manager = $CombatManager
-@onready var game_ui = $GameUI
-
-# Preload the highlight cell scene
+# Preloaded scenes
 var highlight_cell_scene = preload("res://src/scenes/highlight_cell.tscn") as PackedScene
 var damage_number_scene = preload("res://src/scenes/damage_number.tscn") as PackedScene
 
-# Camera panning
-var dragging = false
-var drag_start = Vector2.ZERO
+# Managers and controllers
+@onready var unit_manager = $Managers/UnitManager
+@onready var turn_manager = $Managers/TurnManager
+@onready var combat_manager = $Managers/CombatManager
+@onready var game_ui = $GameUI
+
+# New managers - will be initialized in _ready
+var grid_manager: GridManager
+var highlight_manager: HighlightManager
+var input_handler: InputHandler
+var enemy_ai: EnemyAIController
+var camera_controller: CameraController
+
+# Rest Button
+var rest_button: Button
 
 func _ready():
-	# Initialize the grid
-	_initialize_grid()
+	# Initialize the new managers
+	grid_manager = GridManager.new()
+	add_child(grid_manager)
+	grid_manager.initialize(GRID_SIZE, CELL_SIZE)
 
-	# Initialize managers
+	highlight_manager = HighlightManager.new()
+	add_child(highlight_manager)
+	highlight_manager.initialize(grid_manager, unit_manager, highlight_cell_scene)
+
+	camera_controller = CameraController.new()
+	add_child(camera_controller)
+	camera_controller.initialize($Camera2D)
+
+	input_handler = InputHandler.new()
+	add_child(input_handler)
+	input_handler.initialize(grid_manager, unit_manager, highlight_manager, turn_manager, $Camera2D)
+
+	enemy_ai = EnemyAIController.new()
+	add_child(enemy_ai)
+	enemy_ai.initialize(grid_manager, unit_manager, combat_manager)
+
+	# Initialize the original managers
 	combat_manager.initialize(unit_manager)
 	turn_manager.initialize(unit_manager)
 	game_ui.initialize(unit_manager, turn_manager)
 
 	# Add a player unit (hero)
-	var hero = unit_manager.add_player_unit("Fighter", Vector2i(1, 1), self)
+	var hero = unit_manager.add_player_unit("Monk", Vector2i(1, 1), self)
+
+	# Initialize hero with AP values from design doc
+	hero.max_ap = 80
+	hero.ap = 80
+
+	# Set the hero class to Monk
+	hero.set_class("Monk")
+
+	# You could also manually add actions if needed:
+	#var bounding_kick = BoundingKick.new()
+	#hero.add_action(bounding_kick)
+	#
+	#var pummel = Pummel.new()
+	#hero.add_action(pummel)
+
+	# Create buttons for each action (simplified UI)
+	create_action_buttons(hero)
+
+	# Initialize hero with AP values from design doc
+	hero.max_ap = 80
+	hero.ap = 80
 
 	# Add an enemy unit (goblin)
 	var enemy = unit_manager.add_enemy_unit("Goblin", Vector2i(5, 5), self)
 
+	# Create simple REST button
+	create_rest_button()
+
 	# Connect signals
 	turn_manager.connect("phase_changed", Callable(self, "_on_phase_changed"))
-	turn_manager.connect("enemy_turn_started", Callable(self, "_process_enemy_turn"))
+	turn_manager.connect("enemy_turn_started", Callable(self, "_on_enemy_turn_started"))
 	turn_manager.connect("player_turn_started", Callable(self, "_on_player_turn_started"))
+
+	# Connect new signals
+	input_handler.connect("unit_selected", Callable(self, "_on_input_unit_selected"))
+	input_handler.connect("unit_moved", Callable(self, "_on_input_unit_moved"))
+	input_handler.connect("unit_attacked", Callable(self, "_on_input_unit_attacked"))
+	input_handler.connect("camera_moved", Callable(self, "_on_input_camera_moved"))
+	input_handler.connect("turn_ended", Callable(self, "_on_input_turn_ended"))
+	input_handler.connect("unit_rested", Callable(self, "_on_input_unit_rested"))
+
+	enemy_ai.connect("enemy_turn_completed", Callable(self, "_on_enemy_turn_completed"))
+	enemy_ai.connect("attack_performed", Callable(self, "_on_enemy_attack_performed"))
 
 	# Connect unit signals to combat manager
 	for unit in unit_manager.all_units:
 		unit.connect("unit_attacked", Callable(self, "_on_unit_attacked"))
 
+func create_action_buttons(unit):
+	# Simple UI for actions - you'll want to improve this later
+	var button_container = VBoxContainer.new()
+	button_container.position = Vector2(get_viewport_rect().size.x - 100, 50)
+	button_container.size = Vector2(90, 300)
+	add_child(button_container)
+
+	# Add label
+	var label = Label.new()
+	label.text = "ACTIONS"
+	button_container.add_child(label)
+
+	# Create a button for each action
+	for action in unit.actions:
+		var button = Button.new()
+		button.text = action.name
+		button.tooltip_text = action.description
+		button.custom_minimum_size.y = 30
+		button.connect("pressed", Callable(self, "_on_action_button_pressed").bind(action))
+		button_container.add_child(button)
+
+func _on_action_button_pressed(action):
+	if not selected_unit:
+		return
+
+	if not action.can_use(selected_unit):
+		print("Cannot use action: not enough AP or already acted")
+		return
+
+	print("Selected action: " + action.name)
+
+	# Here you would implement action targeting
+	# For simplicity, we'll just find the nearest enemy and use the action on them
+	var nearest_enemy = find_nearest_enemy(selected_unit)
+
+	if nearest_enemy:
+		selected_unit.execute_action(action.id, nearest_enemy)
+
+		# Clear highlights after action
+		highlight_manager.clear_highlights()
+	else:
+		print("No target available")
+
+func find_nearest_enemy(unit):
+	var min_distance = 999
+	var nearest = null
+
+	for enemy in unit_manager.enemy_units:
+		var dist = grid_manager.get_manhattan_distance(
+			grid_manager.world_to_grid(unit.position),
+			grid_manager.world_to_grid(enemy.position)
+		)
+
+		if dist < min_distance:
+			min_distance = dist
+			nearest = enemy
+
+	return nearest
+
+func create_rest_button():
+	# Simple REST button in the corner
+	rest_button = Button.new()
+	rest_button.text = "REST"
+	rest_button.position = Vector2(10, get_viewport_rect().size.y - 40)
+	rest_button.size = Vector2(80, 30)
+	rest_button.connect("pressed", Callable(self, "_on_rest_button_pressed"))
+	add_child(rest_button)
+
+func _on_rest_button_pressed():
+	if selected_unit and selected_unit.can_act():
+		_on_input_unit_rested(selected_unit)
+
 func _on_player_turn_started():
 	print("Map received player_turn_started signal")
-	# Perform any player turn setup here
-	# This ensures the map knows when a new player turn has begun
-
 	# Debug the state of all player units
 	print("Player units at start of turn:")
 	for unit in unit_manager.player_units:
 		print("  " + unit.unit_name + " - has_moved: " + str(unit.has_moved) + ", has_acted: " + str(unit.has_acted))
 
-func _initialize_grid():
-	# Create a grid
-	grid = []
-	for x in range(GRID_SIZE):
-		var row = []
-		for y in range(GRID_SIZE):
-			# 0 means empty/walkable cell
-			row.append(0)
-		grid.append(row)
-
 func _process(delta):
-	# Handle unit movement
-	if is_moving and selected_unit:
-		var direction = (target_position - selected_unit.position).normalized()
-		var distance = selected_unit.position.distance_to(target_position)
-
-		if distance > 5:  # If we're not very close to the target
-			selected_unit.position += direction * 100 * delta
-		else:
-			# Snap to the target position when we're close enough
-			selected_unit.position = target_position
-			is_moving = false
-			print("Movement completed")
-			selected_unit.move_to(target_position)  # Tell the unit it has moved
-
-			# If this was a player unit and we're in player turn
-			if selected_unit.faction == "player" and turn_manager.current_phase == TurnManager.GamePhase.PLAYER_TURN:
-				# Keep the unit selected but clear movement highlights
-				_clear_movement_highlights()
+	# We no longer need this for movement as we're using tweens
+	pass
 
 func _input(event):
-	# Only process input during player turn
-	if turn_manager.current_phase != TurnManager.GamePhase.PLAYER_TURN:
+	input_handler.process_input(event)
+
+# Pathfinding movement for player units
+func move_along_path(unit, path, is_dash, ap_cost):
+	if path.size() == 0:
+		is_moving = false
 		return
 
-	# Camera dragging
-	if event is InputEventScreenDrag or (event is InputEventMouseMotion and event.button_mask == MOUSE_BUTTON_LEFT):
-		if dragging:
-			$Camera2D.position -= event.relative
+	is_moving = true
 
-	elif event is InputEventScreenTouch:
-		if event.pressed:
-			# Start dragging
-			dragging = true
-			drag_start = event.position
-		else:
-			# If it was a short tap, treat it as a click
-			dragging = false
-			if event.position.distance_to(drag_start) < 10:
-				_handle_click(event.position)
+	# Create a single tween for the entire movement
+	var tween = create_tween()
+	tween.set_ease(Tween.EASE_OUT)
 
-	elif event is InputEventMouseButton:
-		if event.button_index == MOUSE_BUTTON_LEFT:
-			if event.pressed:
-				dragging = true
-				drag_start = event.position
-			else:
-				# If it was a short click, handle it
-				dragging = false
-				if event.position.distance_to(drag_start) < 10:
-					_handle_click(event.position)
+	# Add all steps to the tween sequence
+	for step in path:
+		var world_target = grid_manager.grid_to_world(step)
+		tween.tween_property(unit, "position", world_target, 0.2)
 
-	# Keyboard controls for debugging
-	elif event is InputEventKey and event.pressed:
-		if event.keycode == KEY_E:  # End player turn
-			turn_manager.end_player_turn()
-			_clear_movement_highlights()
-			unit_manager.deselect_active_unit()
-			selected_unit = null
-			return
+	# Wait for the entire movement to complete
+	await tween.finished
 
-		if not is_moving:  # Only process keyboard input if not already moving
-			if not selected_unit and event.keycode == KEY_SPACE:
-				# Try to select a player unit
-				var hero_units = unit_manager.player_units
-				if hero_units.size() > 0:
-					selected_unit = hero_units[0]
-					selected_unit.select()
-					var hero_grid_pos = _world_to_grid(selected_unit.position)
-					_show_movement_range(hero_grid_pos)
-
-			elif selected_unit and selected_unit.faction == "player":
-				var hero_grid_pos = _world_to_grid(selected_unit.position)
-				var new_pos = hero_grid_pos
-
-				# WASD movement
-				if event.keycode == KEY_W:
-					new_pos.y -= 1
-				elif event.keycode == KEY_S:
-					new_pos.y += 1
-				elif event.keycode == KEY_A:
-					new_pos.x -= 1
-				elif event.keycode == KEY_D:
-					new_pos.x += 1
-				elif event.keycode == KEY_ESCAPE:
-					# Cancel selection
-					_clear_movement_highlights()
-					unit_manager.deselect_active_unit()
-					selected_unit = null
-					return
-
-				# Check if the move is valid
-				if _is_valid_grid_pos(new_pos) and new_pos != hero_grid_pos:
-					var is_valid_move = false
-					for highlight in highlight_cells:
-						if _world_to_grid(highlight.position) == new_pos:
-							is_valid_move = true
-							break
-
-					if is_valid_move:
-						# Check if there's already a unit at the target position
-						var unit_at_target = unit_manager.get_unit_at_grid_position(new_pos)
-						if unit_at_target:
-							if unit_at_target.faction != selected_unit.faction:
-								# Attack the enemy unit
-								selected_unit.attack(unit_at_target)
-						else:
-							# Move to the empty cell
-							target_position = _grid_to_world(new_pos)
-							is_moving = true
-							selected_unit.has_moved = true
-
-func _handle_click(position):
-	# Convert screen position to world position
-	var world_position = get_global_mouse_position()
-
-	# Convert to grid coordinates
-	var grid_pos = _world_to_grid(world_position)
-
-	# Check if the click is within the grid
-	if _is_valid_grid_pos(grid_pos):
-		# Check if there's a unit at this position
-		var clicked_unit = unit_manager.get_unit_at_grid_position(grid_pos)
-
-		# If no unit is selected
-		if not selected_unit:
-			# If we clicked on a player unit
-			if clicked_unit and clicked_unit.faction == "player" and clicked_unit.can_move():
-				# Select the unit
-				selected_unit = clicked_unit
-				unit_manager.select_unit(clicked_unit)
-				print("Player unit selected: " + clicked_unit.unit_name)
-				# Show movement range
-				_show_movement_range(_world_to_grid(clicked_unit.position))
-			else:
-				print("No selectable unit at this position")
-
-		# If a unit is already selected
-		else:
-			# If we clicked on an enemy, try to attack
-			if clicked_unit and clicked_unit.faction == "enemy":
-				var attacker_grid_pos = _world_to_grid(selected_unit.position)
-				var manhattan_distance = abs(grid_pos.x - attacker_grid_pos.x) + abs(grid_pos.y - attacker_grid_pos.y)
-
-				# Check if enemy is in attack range (assuming range is 1 for now)
-				if manhattan_distance <= 1 and selected_unit.can_act():
-					print("Attacking enemy: " + clicked_unit.unit_name)
-					selected_unit.attack(clicked_unit)
-					_clear_movement_highlights()
-				else:
-					print("Enemy out of range or unit has already acted")
-
-			# If we clicked on another player unit, select it instead
-			elif clicked_unit and clicked_unit.faction == "player" and clicked_unit != selected_unit:
-				_clear_movement_highlights()
-				selected_unit = clicked_unit
-				unit_manager.select_unit(clicked_unit)
-				print("Switching to another player unit: " + clicked_unit.unit_name)
-				_show_movement_range(_world_to_grid(clicked_unit.position))
-
-			# If we clicked on an empty cell within movement range
-			elif not clicked_unit and selected_unit.can_move():
-				var current_grid_pos = _world_to_grid(selected_unit.position)
-
-				# Check if the target position is within movement range
-				var is_valid_move = false
-				for highlight in highlight_cells:
-					if _world_to_grid(highlight.position) == grid_pos:
-						is_valid_move = true
-						break
-
-				if is_valid_move:
-					# Move the unit to the target position
-					target_position = _grid_to_world(grid_pos)
-					is_moving = true
-					print("Moving unit to ", grid_pos)
-					_clear_movement_highlights()
-				else:
-					print("Cannot move to that position")
-
-			# If we clicked on the same unit, deselect it
-			elif clicked_unit == selected_unit:
-				print("Deselecting unit")
-				_clear_movement_highlights()
-				unit_manager.deselect_active_unit()
-				selected_unit = null
-
-func _world_to_grid(world_pos):
-	return Vector2i(int(world_pos.x / CELL_SIZE), int(world_pos.y / CELL_SIZE))
-
-func _grid_to_world(grid_pos):
-	return Vector2(grid_pos.x * CELL_SIZE + CELL_SIZE/2, grid_pos.y * CELL_SIZE + CELL_SIZE/2)
-
-func _is_valid_grid_pos(grid_pos):
-	return grid_pos.x >= 0 and grid_pos.x < GRID_SIZE and grid_pos.y >= 0 and grid_pos.y < GRID_SIZE
-
-func _show_movement_range(center_pos):
-	# Clear any existing highlights
-	_clear_movement_highlights()
-
-	# If the unit has already moved, don't show movement range
-	if selected_unit and selected_unit.has_moved:
-		return
-
-	# Get the unit's movement range
-	var unit_movement_range = selected_unit.movement_range
-
-	# Show cells within movement range
-	for x in range(center_pos.x - unit_movement_range, center_pos.x + unit_movement_range + 1):
-		for y in range(center_pos.y - unit_movement_range, center_pos.y + unit_movement_range + 1):
-			var pos = Vector2i(x, y)
-
-			# Skip the center (unit's position)
-			if pos == center_pos:
-				continue
-
-			# Check if the position is valid and within range
-			if _is_valid_grid_pos(pos):
-				var manhattan_distance = abs(pos.x - center_pos.x) + abs(pos.y - center_pos.y)
-				if manhattan_distance <= unit_movement_range:
-					# Check if there's already a unit at this position
-					var unit_at_pos = unit_manager.get_unit_at_grid_position(pos)
-					if not unit_at_pos:  # Only highlight empty cells for movement
-						# Create a highlight at this position
-						var highlight = highlight_cell_scene.instantiate()
-						highlight.position = _grid_to_world(pos)
-						highlight.set_cell_size(CELL_SIZE)
-						highlight.modulate = Color(0.2, 0.7, 0.2, 0.5)  # Green for movement
-						add_child(highlight)
-						highlight_cells.append(highlight)
-					elif unit_at_pos.faction != selected_unit.faction:
-						# Highlight enemies in attack range with a different color
-						var highlight = highlight_cell_scene.instantiate()
-						highlight.position = _grid_to_world(pos)
-						highlight.set_cell_size(CELL_SIZE)
-						highlight.modulate = Color(0.7, 0.2, 0.2, 0.5)  # Red for enemies
-						add_child(highlight)
-						highlight_cells.append(highlight)
-
-func _clear_movement_highlights():
-	# Remove all highlight cells
-	for highlight in highlight_cells:
-		highlight.queue_free()
-	highlight_cells.clear()
-
-func _process_enemy_turn():
-	print("Processing enemy turn")
-	# Process each enemy unit's turn one at a time
-	var enemy_units = unit_manager.enemy_units.duplicate()
-	_take_enemy_turn(enemy_units)
-
-func _take_enemy_turn(remaining_enemies):
-	if remaining_enemies.size() == 0:
-		# All enemies have taken their turn
-		print("All enemies have moved, ending enemy turn")
-		await get_tree().create_timer(0.5).timeout
-
-		# End enemy turn in turn manager (which will start a new turn)
-		print("Calling turn_manager.end_enemy_turn()")
-		turn_manager.end_enemy_turn()
-		print("Returned from turn_manager.end_enemy_turn()")
-		return
-
-	var enemy = remaining_enemies.pop_front()
-
-	# Find closest player unit
-	var target = _find_closest_player_unit(enemy)
-
-	if target:
-		var enemy_grid_pos = _world_to_grid(enemy.position)
-		var target_grid_pos = _world_to_grid(target.position)
-		var distance = abs(enemy_grid_pos.x - target_grid_pos.x) + abs(enemy_grid_pos.y - target_grid_pos.y)
-
-		if distance <= 1:
-			# Attack if adjacent
-			_perform_attack(enemy, target)
-			await get_tree().create_timer(0.8).timeout
-			# Process next enemy
-			_take_enemy_turn(remaining_enemies)
-		else:
-			# Move toward player
-			var path = _find_path_to_player(enemy_grid_pos, target_grid_pos)
-
-			if path.size() > 0:
-				# Move along the path (just the first step)
-				var move_target = path[0]
-				var world_target = _grid_to_world(move_target)
-
-				# Animate the movement
-				var tween = create_tween()
-				tween.tween_property(enemy, "position", world_target, 0.3)
-				await tween.finished
-
-				# Set the new position
-				enemy.position = world_target
-				enemy.has_moved = true  # Mark that the enemy has moved
-
-			await get_tree().create_timer(0.3).timeout
-			# Process next enemy
-			_take_enemy_turn(remaining_enemies)
+	# Mark that the unit has moved and deduct AP if dashing
+	if is_dash:
+		unit.dash_to(unit.position, ap_cost)
 	else:
-		# No player units found, process next enemy
-		await get_tree().create_timer(0.1).timeout
-		_take_enemy_turn(remaining_enemies)
+		unit.move_to(unit.position)
 
-func _find_closest_player_unit(enemy_unit):
-	var closest_unit = null
-	var min_distance = 999
+	# Clear highlights and reset movement state
+	highlight_manager.clear_highlights()
+	is_moving = false
 
-	for unit in unit_manager.player_units:
-		var enemy_pos = _world_to_grid(enemy_unit.position)
-		var player_pos = _world_to_grid(unit.position)
-		var distance = abs(enemy_pos.x - player_pos.x) + abs(enemy_pos.y - player_pos.y)
+# Input handler signal callbacks
+func _on_input_unit_selected(unit):
+	selected_unit = unit
+	print("Player unit selected: " + unit.unit_name)
 
-		if distance < min_distance:
-			min_distance = distance
-			closest_unit = unit
+	# Update REST button based on unit state
+	rest_button.disabled = unit.has_acted
 
-	return closest_unit
+func _on_input_unit_moved(unit, target_pos, is_dash, ap_cost):
+	# Don't start new movement if already moving
+	if is_moving:
+		return
 
-func _find_path_to_player(start_pos, target_pos):
-	# Simple implementation - just move one step closer to the player
-	# In a full game, you'd implement A* pathfinding
-	var path = []
+	selected_unit = unit
 
-	var x_diff = target_pos.x - start_pos.x
-	var y_diff = target_pos.y - start_pos.y
+	# Calculate a path to the target
+	var start_grid_pos = grid_manager.world_to_grid(unit.position)
+	var target_grid_pos = grid_manager.world_to_grid(target_pos)
 
-	if abs(x_diff) > abs(y_diff):
-		# Move horizontally first
-		var next_x = start_pos.x + (1 if x_diff > 0 else -1)
-		var potential_pos = Vector2i(next_x, start_pos.y)
+	print("Moving unit from ", start_grid_pos, " to ", target_grid_pos)
+	print("Is dash: ", is_dash, " AP cost: ", ap_cost)
 
-		# Check if space is valid and empty
-		if _is_valid_grid_pos(potential_pos) and unit_manager.get_unit_at_grid_position(potential_pos) == null:
-			path.append(potential_pos)
-		else:
-			# Try vertical instead
-			var next_y = start_pos.y + (1 if y_diff > 0 else -1)
-			potential_pos = Vector2i(start_pos.x, next_y)
+	# Get path from grid manager
+	var max_range = unit.movement_range
+	if is_dash:
+		max_range += unit.dash_range
 
-			if _is_valid_grid_pos(potential_pos) and unit_manager.get_unit_at_grid_position(potential_pos) == null:
-				path.append(potential_pos)
+	var path = grid_manager.find_path(start_grid_pos, target_grid_pos, unit_manager, max_range)
 
+	# If the path is empty but we're clicking on a valid tile
+	if path.size() == 0 and grid_manager.is_valid_grid_pos(target_grid_pos) and start_grid_pos != target_grid_pos:
+		# Check if it's a direct line of sight and a valid destination
+		var is_valid_destination = true
+		var unit_at_target = unit_manager.get_unit_at_grid_position(target_grid_pos)
+
+		if unit_at_target != null:
+			is_valid_destination = false
+
+		if is_valid_destination:
+			path = [target_grid_pos]
+
+	if path.size() > 0:
+		print("Path found: ", path)
+		move_along_path(unit, path, is_dash, ap_cost)
 	else:
-		# Move vertically first
-		var next_y = start_pos.y + (1 if y_diff > 0 else -1)
-		var potential_pos = Vector2i(start_pos.x, next_y)
+		print("No valid path found")
 
-		# Check if space is valid and empty
-		if _is_valid_grid_pos(potential_pos) and unit_manager.get_unit_at_grid_position(potential_pos) == null:
-			path.append(potential_pos)
-		else:
-			# Try horizontal instead
-			var next_x = start_pos.x + (1 if x_diff > 0 else -1)
-			potential_pos = Vector2i(next_x, start_pos.y)
+func _on_input_unit_attacked(attacker, defender):
+	print("Attacking enemy: " + defender.unit_name)
+	attacker.attack(defender)
+	highlight_manager.clear_highlights()
 
-			if _is_valid_grid_pos(potential_pos) and unit_manager.get_unit_at_grid_position(potential_pos) == null:
-				path.append(potential_pos)
+func _on_input_unit_rested(unit):
+	print(unit.unit_name + " rests")
 
-	return path
+	# Call the unit's rest function
+	unit.rest()
+
+	# Update the rest button
+	rest_button.disabled = true
+
+	# Clear any highlights
+	highlight_manager.clear_highlights()
+
+func _on_input_camera_moved(relative_motion):
+	camera_controller.move_camera(relative_motion)
+
+func _on_input_turn_ended():
+	turn_manager.end_player_turn()
+
+# Enemy AI signal callbacks
+func _on_enemy_turn_started():
+	enemy_ai.process_enemy_turn()
+
+func _on_enemy_turn_completed():
+	turn_manager.end_enemy_turn()
+
+func _on_enemy_attack_performed(attacker, defender):
+	_perform_attack(attacker, defender)
+
+# Unit signal handlers
+func _on_unit_attacked(attacker, defender):
+	_perform_attack(attacker, defender)
 
 func _perform_attack(attacker, defender):
 	print(attacker.unit_name + " attacks " + defender.unit_name)
@@ -457,31 +333,29 @@ func _perform_attack(attacker, defender):
 		# Check for game over conditions
 		turn_manager.check_game_over()
 
-func _on_unit_attacked(attacker, defender):
-	_perform_attack(attacker, defender)
-
 func _on_phase_changed(new_phase):
 	print("Map _on_phase_changed called with new_phase: " + str(new_phase))
 
 	match new_phase:
 		TurnManager.GamePhase.PLAYER_TURN:
 			print("Map received player phase change")
-			# Player turn setup is now handled in _on_player_turn_started
+			# Make sure REST button is available for new turn
+			rest_button.visible = true
 
 		TurnManager.GamePhase.ENEMY_TURN:
 			print("Map received enemy phase change")
 			# Clean up player-turn state
-			_clear_movement_highlights()
+			highlight_manager.clear_highlights()
 			unit_manager.deselect_active_unit()
 			selected_unit = null
-
-			# We no longer call _process_enemy_turn here
-			# It will be called via the enemy_turn_started signal
+			rest_button.visible = false
 
 		TurnManager.GamePhase.VICTORY:
 			print("Victory!")
 			# Show victory UI or effects
+			rest_button.visible = false
 
 		TurnManager.GamePhase.DEFEAT:
 			print("Defeat!")
 			# Show defeat UI or effects
+			rest_button.visible = false
