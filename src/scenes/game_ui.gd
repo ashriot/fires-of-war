@@ -17,7 +17,7 @@ var turn_manager = null
 
 func _ready():
 	unit_info_panel.visible = false
-
+	#test
 
 func initialize(unit_mgr, turn_mgr):
 	unit_manager = unit_mgr
